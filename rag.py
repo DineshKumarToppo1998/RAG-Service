@@ -1,5 +1,9 @@
+import os
+
 import torch
-from flask import Flask, request, jsonify
+from werkzeug.utils import secure_filename
+from generate_embedding import update_vector_store, generate_vector_store
+from flask import Flask, request, jsonify,redirect, url_for
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import Settings, load_index_from_storage, StorageContext, PromptTemplate
 from llama_index.core.retrievers import VectorIndexRetriever
@@ -7,7 +11,7 @@ from llama_index.llms.ollama import Ollama
 from llama_index.core.response_synthesizers import get_response_synthesizer
 from llama_index.core.query_engine import RetrieverQueryEngine
 
-
+UPLOAD_FOLDER = './docs'
 embed_model = HuggingFaceEmbedding(model_name="mixedbread-ai/mxbai-embed-2d-large-v1", device="cuda")
 Settings.embed_model = embed_model
 
@@ -68,8 +72,32 @@ def query_api():
         return jsonify({"error": "Invalid query format. Please provide a JSON object with a 'query' key."}), 400
 
 
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if request.method == 'POST':
+        # Check if a file was submitted
+        if 'file' not in request.files:
+            return redirect(request.url)  # Redirect back to the form if no file
+
+        file = request.files['file']
+        
+        # Secure the filename and save
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(UPLOAD_FOLDER, filename))
+        return 'File uploaded successfully'
+
+@app.route('/generate', methods=['GET'])
+def call_generate_embeddings():
+    if os.path.exists("./embeddings/index_store.json"):
+        update_vector_store()
+    if not os.path.exists("./embeddings/index_store.json"):
+        generate_vector_store()
+    return 'Embeddings Generated Successfully'
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
 
 
 # while True:
